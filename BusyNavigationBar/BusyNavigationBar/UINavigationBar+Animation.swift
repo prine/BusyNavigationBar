@@ -13,12 +13,14 @@ private var BusyNavigationBarOptionsAssociationKey: UInt8 = 1
 private var alphaAnimationDurationOfLoadingView = 0.3
 
 extension UINavigationBar {
+
+    // MARK: - Properties
     private var busy_loadingLayer: CALayer? {
         get {
             return objc_getAssociatedObject(self, &BusyNavigationBarLoadingLayerAssociationKey) as? CALayer
         }
-        set(newValue) {
-            objc_setAssociatedObject(self, &BusyNavigationBarLoadingLayerAssociationKey, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN))
+        set {
+            objc_setAssociatedObject(self, &BusyNavigationBarLoadingLayerAssociationKey, newValue, .OBJC_ASSOCIATION_RETAIN)
         }
     }
 
@@ -26,81 +28,84 @@ extension UINavigationBar {
         get {
             return objc_getAssociatedObject(self, &BusyNavigationBarOptionsAssociationKey) as! BusyNavigationBarOptions
         }
-        set(newValue) {
-            objc_setAssociatedObject(self, &BusyNavigationBarOptionsAssociationKey, newValue, objc_AssociationPolicy(OBJC_ASSOCIATION_RETAIN))
+        set {
+            objc_setAssociatedObject(self, &BusyNavigationBarOptionsAssociationKey, newValue, .OBJC_ASSOCIATION_RETAIN)
         }
     }
+
+    // MARK: - Overrides
 
     public override var bounds: CGRect {
         didSet {
-            if oldValue != bounds {
-                if let loadingLayer = self.busy_loadingLayer {
-                    loadingLayer.removeFromSuperlayer()
-                    
-                    self.busy_loadingLayer = nil
-                    
-                    start(self.busy_options)
-                }
-            }
+            guard oldValue != bounds,
+                let loadingLayer = busy_loadingLayer else { return }
+
+            loadingLayer.removeFromSuperlayer()
+            busy_loadingLayer = nil
+            start(busy_options)
         }
     }
 
-    public func start(_ options: BusyNavigationBarOptions? = nil) {
-        if let loadingLayer = self.busy_loadingLayer {
-            loadingLayer.removeFromSuperlayer()
-        }
+    // MARK: - Tasks
+
+    public func start(options: BusyNavigationBarOptions? = nil) {
+        // remove previous layer
+        busy_loadingLayer?.removeFromSuperlayer()
 
         busy_options = options ?? BusyNavigationBarOptions()
 
-        busy_loadingLayer = pickAnimationLayer()
-        busy_loadingLayer?.masksToBounds = true
-        busy_loadingLayer?.position.x = bounds.size.width / 2
-        busy_loadingLayer?.position.y = bounds.size.height / 2
+        let animationLayer = pickAnimationLayer
+        animationLayer.masksToBounds = true
+        animationLayer.position.x = bounds.size.width / 2
+        animationLayer.position.y = bounds.size.height / 2
 
         if busy_options.transparentMaskEnabled {
-            busy_loadingLayer?.mask = maskLayer()
-        }
-        
-        UIView.animateWithDuration(alphaAnimationDurationOfLoadingView, delay: 0.0, options: UIViewAnimationOptions.AllowUserInteraction, animations: { () -> Void in
-            // Looks like in CALayers instead of alpha it's called opacity
-            self.busy_loadingLayer?.opacity = Float(self.busy_options.alpha)
-        }) { (finished) -> Void in
-            // Finished..
+            animationLayer.mask = maskLayer
         }
 
         // Add the busy_loadingLayer directly as sublayer
-        self.layer.addSublayer(busy_loadingLayer)
+        layer.addSublayer(animationLayer)
+        busy_loadingLayer = animationLayer
+
+        setLayerHiddenAnimated(false)
     }
 
-    public func stop(){
-        if let loadingView = self.busy_loadingLayer {
-            UIView.animateWithDuration(alphaAnimationDurationOfLoadingView, delay: 0.0, options: UIViewAnimationOptions.AllowUserInteraction, animations: { () -> Void in
-                self.busy_loadingLayer?.opacity = 0.0
-            }) { (finished) -> Void in
-                // Finished..
-            }
-        }
+    public func stop() {
+        setLayerHiddenAnimated(true)
     }
 
-    func pickAnimationLayer() -> CALayer {
-        var animationLayer: CALayer
+    // MARK: - Private
 
+    private func setLayerHiddenAnimated(hidden: Bool) {
+        let opacity = hidden ? 0 : Float(busy_options.alpha)
+
+        UIView.animateWithDuration(alphaAnimationDurationOfLoadingView,
+            delay: 0,
+            options: [.AllowUserInteraction],
+            animations: {
+                self.busy_loadingLayer?.opacity = opacity
+            },
+            completion: nil)
+    }
+
+    private var pickAnimationLayer: CALayer {
         switch busy_options.animationType {
         case .Stripes:
-            animationLayer = AnimationLayerCreator.stripeAnimationLayer(bounds, options: busy_options)
+            return AnimationLayerCreator.stripeAnimationLayer(bounds, options: busy_options)
         case .Bars:
-            animationLayer = AnimationLayerCreator.barAnimation(bounds, options: busy_options)
+            return AnimationLayerCreator.barAnimation(bounds, options: busy_options)
         case .CustomLayer(let layerCreator):
-            animationLayer = layerCreator()
+            return layerCreator()
         }
-
-        return animationLayer
     }
 
-    func maskLayer() -> CALayer {
-        var alphaLayer = CAGradientLayer()
+    private var maskLayer: CALayer {
+        let alphaLayer = CAGradientLayer()
         alphaLayer.frame = bounds
-        alphaLayer.colors = [UIColor(red: 0, green: 0, blue: 0, alpha: 0).CGColor, UIColor(red: 0, green: 0, blue: 0, alpha: 0.2).CGColor]
+        alphaLayer.colors = [
+            UIColor.clearColor().CGColor,
+            UIColor(white: 0, alpha: 0.2).CGColor]
+
         return alphaLayer
     }
 }
