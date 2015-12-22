@@ -67,16 +67,16 @@ extension UINavigationBar {
         layer.addSublayer(animationLayer)
         busy_loadingLayer = animationLayer
 
-        setLayerHiddenAnimated(false)
+        setLayerHiddenAnimated(hidden: false)
     }
 
     public func stop() {
-        setLayerHiddenAnimated(true)
+        setLayerHiddenAnimated(hidden: true)
     }
 
     // MARK: - Private
 
-    private func setLayerHiddenAnimated(hidden: Bool) {
+    private func setLayerHiddenAnimated(hidden hidden: Bool) {
         let opacity = hidden ? 0 : Float(busy_options.alpha)
 
         UIView.animateWithDuration(alphaAnimationDurationOfLoadingView,
